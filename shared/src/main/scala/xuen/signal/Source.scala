@@ -4,7 +4,7 @@ class Source[T] private (initialValue: Option[T]) extends Mutable[T] {
 	/** The current value of this signal */
 	private[this] var currentValue: Option[T] = initialValue
 
-	/** Simple proxy for currentValue to implement Mutable interface */
+	/** Simple proxy for currentValue to implement the Mutable interface */
 	protected def current: Option[T] = currentValue
 
 	/** Updates the current value of this signal */
@@ -17,11 +17,11 @@ class Source[T] private (initialValue: Option[T]) extends Mutable[T] {
 	def := (value: T): Unit = current = Some(value)
 
 	/** Clears the value of this signal */
-	def := (empty: EmptyValue.type): Unit = current = None
+	def := (empty: UndefinedValue.type): Unit = current = None
 }
 
 object Source {
 	def apply[T](value: T): Source[T] = new Source(Some(value))
-	def apply[T](): Source[T] = empty[T]
-	def empty[T]: Source[T] = new Source(None)
+	def apply[T](): Source[T] = undefined[T]
+	def undefined[T]: Source[T] = new Source(None)
 }

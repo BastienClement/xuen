@@ -2,6 +2,11 @@ package xuen.signal
 
 import scala.collection.immutable.TreeSet
 
+/**
+  * Common trait for mutable signals.
+  *
+  * @tparam T the type of value of the signal
+  */
 trait Mutable[T] extends Signal[T] {
 	/** Current signal value */
 	protected def current: Option[T]
