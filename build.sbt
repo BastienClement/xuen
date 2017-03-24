@@ -19,7 +19,7 @@ lazy val xuen = crossProject.in(file(".")).settings(
 	),
 	crossPaths := false,
 	libraryDependencies ++= Seq(
-		"org.scalatest" %% "scalatest" % "3.0.1" % "test"
+		"org.scalatest" %%% "scalatest" % "3.0.1" % "test"
 	)
 ).jvmSettings(
 ).jsSettings(
