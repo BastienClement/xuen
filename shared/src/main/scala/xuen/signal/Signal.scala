@@ -1,17 +1,15 @@
 package xuen.signal
 
-import scala.concurrent.{ExecutionContext, Future}
 import scala.language.{higherKinds, implicitConversions}
 
 /**
   * A Signal is a container for a value that can change with time.
   *
-  * Signals offer a monadic-style API to transform its value in a
-  * functional way and ensure that change are propagated through
-  * the dependency network.
+  * Signals offer a monadic-style API to transform its value in a functional
+  * way and ensure that change are propagated through the dependency network.
   *
-  * Signals also offer an implicit way to declare new Signal with
-  * automatic dependencies detection.
+  * Signals also offer an implicit way to declare new Signal with automatic
+  * dependencies detection.
   *
   * @tparam T the type of value of the signal
   */
@@ -47,7 +45,7 @@ trait Signal[+T] {
 	  * Creates a new signal whose value will be the same as the signal
 	  * returned by a function applied to this signal current value.
 	  *
-	  * This method implement a switch-like behavior, where the current value
+	  * This method implements a switch-like behavior, where the current value
 	  * of this signal is used to select another signal and return it value.
 	  *
 	  * @param f the function to apply to this signal value
@@ -66,6 +64,14 @@ trait Signal[+T] {
 
 object Signal {
 	/**
+	  * Throws the [[UndefinedSignalException]] exception.
+	  *
+	  * This can be used to return from expression defined signals and result
+	  * in an undefined signal.
+	  */
+	def nil: Nothing = throw UndefinedSignalException()
+
+	/**
 	  * Constructs an undefined signal ot type T.
 	  *
 	  * @tparam T the type of the signal
@@ -77,49 +83,27 @@ object Signal {
 	  * Constructs a computed signal from the given expression.
 	  * Dependencies will be automatically detected and bound.
 	  *
-	  * @param gen the generator expression
+	  * @param expr the definition expression
 	  * @tparam T the type of the signal
 	  */
-	def apply[T](gen: => T): Expression[T] = new Expression(() => Some(gen))
+	def apply[T](expr: => T): Expression[T] = new Expression(Some(expr))
 
 	/**
 	  * Defines a computed signal from the given expression.
 	  * Behave like [[apply]] except that the generator is expected to
-	  * return an [[Option]] instead of [[T]].
+	  * return an [[Option]] instead of a value of type [[T]].
 	  *
-	  * @param gen the generator expression
+	  * @param definition the definition expression
 	  * @tparam T the type of the signal
 	  */
-	def define[T](gen: => Option[T]): Expression[T] = new Expression(() => gen)
+	def define[T](definition: => Option[T]): Expression[T] = new Expression(definition)
 
-	/**
-	  * Constructs a stable signal from the given signal. A stable signal holds
-	  * its current value in case the original signal becomes undefined.
-	  *
-	  * @param signal the source signal
-	  * @tparam T the type of the signal
-	  */
-	def stable[T](signal: Signal[T]): Expression[T] = {
-		var last = signal.option
-		Signal.define {
-			val now = signal.option
-			if (now.isDefined) last = now
-			now orElse last
-		}
-	}
-
-	/** Wraps an acceptable input into signal */
-	//implicit def wrap[T, S[_], U](value: T)(implicit m: SignalMorphism[T, S, U]): S[U] = m.morph(value)
+	/** Wraps a constant value inside a signal */
 	implicit def wrap[T](value: T): Constant[T] = Constant(value)
 
+	/** Wraps an optional constant value inside a signal */
 	implicit def fromOption[T](option: Option[T]): Immutable[T] = option match {
 		case Some(value) => Constant(value)
 		case None => Undefined
-	}
-
-	implicit def fromFuture[T](future: Future[T])(implicit ec: ExecutionContext): Mutable[T] = {
-		val source = Source.undefined[T]
-		for (value <- future) source := value
-		source
 	}
 }

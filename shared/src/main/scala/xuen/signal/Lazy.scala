@@ -4,12 +4,12 @@ import scala.collection.immutable.TreeSet
 import scala.util.DynamicVariable
 
 /**
-  * A signal that lazily computes its value when required.
+  * A signal that lazily computes its value when requested.
   *
   * Such signal has a list of parent signal from which its value is derived.
   * Any change in one of these signals will cause invalidation of the current
-  * caches value and trigger a new generation the next time this signal value
-  * is accessed.
+  * cached value and trigger a new generation the next time the value of this
+  * signal is accessed.
   *
   * @tparam T the type of the signal
   */

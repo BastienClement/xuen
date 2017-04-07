@@ -1,36 +1,35 @@
 package xuen.signal
 
-import org.scalatest.{FlatSpec, Matchers}
+import xuen.BaseSpec
 
-class SignalSpec extends FlatSpec with Matchers {
-	"An empty signal" should "be empty" in {
-		val s = Signal.undefined
-		s.isDefined shouldBe false
-		s.isUndefined shouldBe true
-	}
+class SignalSpec extends BaseSpec {
+	"A signal" when {
+		"undefined" should {
+			val undef = Signal.undefined
+			"be undefined" in {
+				undef.isDefined shouldBe false
+				undef.isUndefined shouldBe true
+			}
+			"have no-ops monadic operators" in {
+				undef.map(_ => ???) should be theSameInstanceAs undef
+				undef.flatMap(_ => ???) should be theSameInstanceAs undef
+				undef.filter(_ => ???) should be theSameInstanceAs undef
+			}
+		}
 
-	it should "not be lazy" in {
-		val s = Signal.undefined
-		s shouldBe Undefined
-		s.map(identity) shouldBe s
-		s.flatMap(identity) shouldBe s
-		s.filter(_ => true) shouldBe s
-	}
-
-	"A stable signal" should "hold its value" in {
-		val source = Source[Int]()
-		val s = Signal.stable(source)
-		s.isUndefined shouldBe true
-		source := 2
-		s.isDefined shouldBe true
-		s.value shouldBe 2
-		source := UndefinedValue
-		s.isDefined shouldBe true
-		s.value shouldBe 2
-		source := 4
-		s.value shouldBe 4
-
-		val test: Signal[Int] = Some(2)
-		val test2: Signal[Int] = None
+		"constant" should {
+			val const = Signal.wrap(2)
+			"be defined" in {
+				const.isDefined shouldBe true
+				const.isUndefined shouldBe false
+			}
+			"have eager monadic operators" in {
+				const.map(_ * 2) should matchPattern { case Constant(4) => }
+				val other = Signal.wrap(0)
+				const.flatMap(_ => other) should be theSameInstanceAs other
+				const.filter(_ > 0) should be theSameInstanceAs const
+				const.filter(_ < 0) should be theSameInstanceAs Signal.undefined
+			}
+		}
 	}
 }

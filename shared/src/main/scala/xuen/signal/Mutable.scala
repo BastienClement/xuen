@@ -5,10 +5,13 @@ import scala.collection.immutable.TreeSet
 /**
   * Common trait for mutable signals.
   *
+  * Mutable signals can have children that must be notified when their value
+  * is updated. This is the common trait for both Sources and Lazies.
+  *
   * @tparam T the type of value of the signal
   */
 trait Mutable[T] extends Signal[T] {
-	/** Current signal value */
+	/** Current signal value, must be implemented by subclasses */
 	protected def current: Option[T]
 
 	/** The set of child dependant on this signal value for their own value */

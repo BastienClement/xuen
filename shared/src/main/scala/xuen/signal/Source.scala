@@ -21,7 +21,12 @@ class Source[T] private (initialValue: Option[T]) extends Mutable[T] {
 }
 
 object Source {
+	/** Creates a new Source with the provided initial value */
 	def apply[T](value: T): Source[T] = new Source(Some(value))
-	def apply[T](): Source[T] = undefined[T]
+
+	/** Creates a new undefined Source */
 	def undefined[T]: Source[T] = new Source(None)
+
+	/** Alias for [[undefined]] */
+	@inline def apply[T](): Source[T] = undefined[T]
 }

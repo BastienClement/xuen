@@ -26,4 +26,4 @@ lazy val xuen = crossProject.in(file(".")).settings(
 )
 
 lazy val xuenJvm = xuen.jvm
-lazy val xuenJs = xuen.js
+lazy val xuenJs = xuen.js.enablePlugins(ScalaJSPlugin)
