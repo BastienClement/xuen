@@ -1,9 +1,4 @@
 
-lazy val root = project.in(file(".")).aggregate(xuenJvm, xuenJs).settings(
-	publish := {},
-	publishLocal := {}
-)
-
 lazy val xuen = crossProject.in(file(".")).settings(
 	name := "xuen" ,
 	version := "1.0-SNAPSHOT",
