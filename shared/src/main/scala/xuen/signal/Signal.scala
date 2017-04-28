@@ -60,6 +60,12 @@ trait Signal[+T] {
 	  * @param p the predicate function
 	  */
 	def filter(p: T => Boolean): Signal[T]
+
+	final def flatten[U](implicit ev: T <:< Signal[U]): Signal[U] = flatMap(ev)
+
+	final def lift: Signal[Option[T]] = Signal(option)
+
+	final def unlift[U](implicit ev: T <:< Option[U]): Signal[U] = Signal.define(ev(value))
 }
 
 object Signal {
