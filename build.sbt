@@ -28,7 +28,8 @@ lazy val xuen = crossProject.in(file(".")).settings(
 	),
 	libraryDependencies ++= Seq(
 		"org.scala-js" %%% "scalajs-dom" % "0.9.1",
-		"com.lihaoyi" %%% "sourcecode" % "0.1.3"
+		"com.lihaoyi" %%% "sourcecode" % "0.1.3",
+		"org.scala-lang.modules" %%% "scala-parser-combinators" % "1.0.5"
 	),
 	jsDependencies ++= Seq(
 		("org.webjars.npm" % "less" % "2.7.2").intransitive() /
