@@ -1,8 +1,8 @@
 package xuen.expression.parser
 
-sealed trait Token
+private[parser] sealed trait Token
 
-object Token {
+private[parser] object Token {
 	sealed trait AtomToken extends Token
 	case class Identifier(name: String) extends AtomToken
 	case class Selector(id: String) extends AtomToken
@@ -32,6 +32,9 @@ object Token {
 	case object NotEq extends OperatorToken("!=")
 	case object EqEqEq extends OperatorToken("===")
 	case object NotEqEq extends OperatorToken("!==")
+
+	case object Question extends OperatorToken("?")
+	case object Exclamation extends OperatorToken("!")
 
 	case object And extends OperatorToken("&&")
 	case object Or extends OperatorToken("||")

@@ -1,9 +1,11 @@
 package xuen.expression.parser
 
+import java.lang.Double.parseDouble
 import scala.util.parsing.combinator.RegexParsers
+import xuen.expression.ExpressionLexerError
 import xuen.expression.parser.Token._
 
-object Lexer extends RegexParsers {
+private[expression] object Lexer extends RegexParsers {
 	override def skipWhitespace: Boolean = true
 
 	/** Parses operators */
@@ -11,29 +13,30 @@ object Lexer extends RegexParsers {
 		LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
 		Plus, Minus, Star, Slash, Percent,
 		Lt, LtEq, Gt, GtEq, EqEq, NotEq, EqEqEq, NotEqEq,
+		Question, Exclamation,
 		And, Or,
 		BitAnd, BitOr, BitXor,
 		Comma, Semicolon, Colon, LeftArrow, RightArrow, Dot, SafeDot,
 		Equal, ColonEqual
-	).sortBy(op => -op.symbol.length).map(op => op.symbol ^^ { _ => op }).reduce(_ | _)
+	).sortBy(op => -op.symbol.length).map(op => op.symbol ^^^ op).reduce(_ | _)
 
 	/** Parses keywords */
 	private def keyword: Parser[KeywordToken] = Seq(
 		Val, Null, Undefined, True, False, If, Then, Else, Of, By, To
-	).sortBy(kw => -kw.literal.length).map(kw => (kw.literal + "\\b").r ^^ { _ => kw }).reduce(_ | _)
+	).sortBy(kw => -kw.literal.length).map(kw => (kw.literal + "\\b").r ^^^ kw).reduce(_ | _)
 
 	/** Parses an identifier */
-	private def identifier: Parser[Identifier] = "[a-zA-Z_$][a-zA-Z0-9_$]*".r ^^ Identifier
+	private def identifier: Parser[Identifier] = "[a-zA-Z_$][a-zA-Z0-9_$]*".r map Identifier
 
 	/** Parses a selector */
-	private def selector: Parser[Selector] = "#[a-zA-Z0-9\\-]+".r ^^ Selector
+	private def selector: Parser[Selector] = "#[a-zA-Z0-9\\-]+".r map Selector
 
 	// Pattern matching a string literal
 	private val stringPattern = """(?=["'])(?:"[^"\\]*(?:\\[\s\S][^"\\]*)*"|'[^'\\]*(?:\\[\s\S][^'\\]*)*')""".r
 
 	/** Parses a string literal */
 	private def string: Parser[StringLiteral] = {
-		stringPattern ^^ { literal =>
+		stringPattern map { literal =>
 			// Handle character escape sequences
 			StringLiteral("\\\\(.)".r.replaceAllIn(literal.drop(1).dropRight(1), { m =>
 				m.group(1) match {
@@ -53,10 +56,10 @@ object Lexer extends RegexParsers {
 	// The SourceCharacter immediately following a NumericLiteral must not be an IdentifierStart or DecimalDigit.
 	private val numberPattern = """((0|[1-9][0-9]*)(\.[0-9]+)?|\.[0-9]+)([eE][+\-]?[0-9]+)?(?![a-zA-Z_$]|[0-9])""".r
 
-	private def decNumber: Parser[NumberLiteral] = numberPattern ^^ java.lang.Double.parseDouble ^^ NumberLiteral
+	private def decNumber: Parser[NumberLiteral] = numberPattern map (literal => NumberLiteral(parseDouble(literal)))
 
 	private def integer(pattern: String, base: Int): Parser[NumberLiteral] = {
-		(pattern + "(?![a-zA-Z_$]|[0-9])").r ^^ { literal =>
+		(pattern + "(?![a-zA-Z_$]|[0-9])").r map { literal =>
 			NumberLiteral(Integer.parseInt(literal.drop(2), base).toDouble)
 		}
 	}
@@ -69,17 +72,14 @@ object Lexer extends RegexParsers {
 	private def number: Parser[NumberLiteral] = hexInteger | octInteger | binInteger | decNumber
 
 	/** Parses a sequence of tokens */
-	private def tokens: Parser[List[Token]] = {
-		phrase(rep1(keyword | number | string | identifier | selector | operator))
+	private val tokens: Parser[List[Token]] = {
+		phrase((keyword | number | string | identifier | selector | operator).*)
 	}
 
-	/** Lexer error */
-	case class LexerError(msg: String)
-
 	/** Tokenize the given input into a list of tokens */
-	def apply(input: String): Either[LexerError, List[Token]] = {
+	def apply(input: String): Either[ExpressionLexerError, List[Token]] = {
 		parse(tokens, input) match {
-			case NoSuccess(msg, _) => Left(LexerError(msg))
+			case NoSuccess(msg, _) => Left(ExpressionLexerError(msg))
 			case Success(result, _) => Right(result)
 		}
 	}

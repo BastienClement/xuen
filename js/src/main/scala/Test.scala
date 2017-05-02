@@ -1,8 +1,8 @@
-import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.js.JSApp
 import scala.scalajs.js.annotation.ScalaJSDefined
 import xuen.component.{Component, Element}
+import xuen.expression.Expression
 
 object FooBar extends Component(selector = "foo-bar", implementation = js.constructorOf[FooBar])
 		with Component.Template with Component.Stylesheet {
@@ -31,10 +31,6 @@ class FooBar extends Element(FooBar) {
 object Test extends JSApp {
 	@scala.scalajs.js.annotation.JSExport
 	def main(): Unit = {
-		dom.console.log(dom.document.asInstanceOf[js.Dynamic].currentScript)
-		val e = new FooBar
-		dom.document.body.appendChild(e)
-		val f = new FooBar
-		dom.document.body.appendChild(f)
+		println(Expression.parse(""" { foo : 2, test: [{}] } """))
 	}
 }

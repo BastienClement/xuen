@@ -5,7 +5,7 @@ import scala.scalajs.js.DynamicImplicits.truthValue
 import xuen.expression.Expression
 import xuen.expression.Expression._
 
-object Optimizer {
+private[expression] object Optimizer {
 	/** Attempts to find known compile time value */
 	private def staticValue(expression: Expression): Option[Any] = expression match {
 		case Empty =>
@@ -22,12 +22,12 @@ object Optimizer {
 			}
 
 		case PropertyWrite(_, _, value) => staticValue(value)
-		case KeyedWrite(_, _, value) => staticValue(value)
 		case LiteralPrimitive(value) => Some(value)
 
-		case Range(from, to) =>
-			(staticValue(from), staticValue(to)) match {
-				case (Some(a: Int), Some(b: Int)) => Some(a to b)
+		case Range(from, to, step) =>
+			(staticValue(from), staticValue(to), step.flatMap(staticValue)) match {
+				case (Some(a: Int), Some(b: Int), Some(c: Int)) => Some(a to b by c)
+				case (Some(a: Int), Some(b: Int), None) => Some(a to b)
 				case _ => None
 			}
 
@@ -44,7 +44,6 @@ object Optimizer {
 			for (y <- staticTruth(yes); n <- staticTruth(no); if y == n) yield y
 
 		case PropertyWrite(_, _, value) => staticTruth(value)
-		case KeyedWrite(_, _, value) => staticTruth(value)
 
 		case Binary(op @ ("||" | "&&"), lhs, rhs) =>
 			(op, staticTruth(lhs), staticTruth(rhs)) match {
@@ -59,7 +58,7 @@ object Optimizer {
 				case _ => None
 			}
 
-		case LiteralArray(_) | LiteralMap(_, _) => Some(true)
+		case LiteralArray(_) | LiteralObject(_) => Some(true)
 
 		case _ => staticValue(expression).map(_.asInstanceOf[js.Dynamic]: Boolean)
 	}
@@ -79,22 +78,19 @@ object Optimizer {
 		case Unary(_, operand) => pure(operand)
 
 		case LiteralArray(values) => values.forall(pure)
-		case LiteralMap(_, values) => values.forall(pure)
+		case LiteralObject(values) => values.forall { case (key, value) => pure(key) && pure(value) }
 
 		case Interpolation(fragments) => fragments.forall {
 			case StringFragment(_) => true
 			case ExpressionFragment(expr) => pure(expr)
 		}
 
-		case Range(from, to) => pure(from) && pure(to)
+		case Range(from, to, step) => pure(from) && pure(to) && step.forall(pure)
 
 		case SelectorQuery(_) | LiteralPrimitive(_) => true
 
-		case PropertyRead(_, _) | SafePropertyRead(_, _) |
-		     MethodCall(_, _, _) | SafeMethodCall(_, _, _) |
-		     PropertyWrite(_, _, _) |
-		     KeyedRead(_, _) | KeyedWrite(_, _, _) |
-		     FunctionCall(_, _) | Pipe(_, _, _) | Reactive(_) => false
+		case PropertyRead(_, _, _) | MethodCall(_, _, _, _) | PropertyWrite(_, _, _) |
+		     FunctionCall(_, _) | Reactive(_) => false
 
 		case _ => throw new IllegalArgumentException(s"Cannot infer pureness from $expression")
 	}
@@ -136,12 +132,14 @@ object Optimizer {
 
 	/** Optimize the given expression */
 	def optimize(expression: Expression): Expression = expression match {
-		case Chain(exprs) if exprs.length < 1 =>
+		case Chain(expressions) if expressions.length < 1 =>
 			Empty
 
-		case Chain(exprs) =>
-			val optExprs = exprs.map(optimize)
-			Chain(optExprs.dropRight(1).filter(!pure(_)) :+ optExprs.last)
+		case Chain(expressions) =>
+			val optimized = expressions.map(optimize)
+			val filtered = optimized.dropRight(1).filter(!pure(_)) :+ optimized.last
+			if (filtered.length == 1) filtered.head
+			else Chain(filtered)
 
 		case Conditional(cond, yes, no) =>
 			val optCond = optimize(cond)
@@ -153,15 +151,10 @@ object Optimizer {
 				case None => Conditional(optCond, optYes, optNo)
 			}
 
-		case PropertyRead(receiver, name) => PropertyRead(optimize(receiver), name)
-		case SafePropertyRead(receiver, name) => SafePropertyRead(optimize(receiver), name)
-		case MethodCall(receiver, name, args) => MethodCall(optimize(receiver), name, args.map(optimize))
-		case SafeMethodCall(receiver, name, args) => SafeMethodCall(optimize(receiver), name, args.map(optimize))
-		case PropertyWrite(receiver, name, value) => PropertyWrite(optimize(receiver), name, optimize(value))
-		case KeyedRead(obj, key) => KeyedRead(optimize(obj), optimize(key))
-		case KeyedWrite(obj, key, value) => KeyedWrite(optimize(obj), optimize(key), optimize(value))
+		case PropertyRead(receiver, property, safe) => PropertyRead(optimize(receiver), optimize(property), safe)
+		case PropertyWrite(receiver, property, value) => PropertyWrite(optimize(receiver), optimize(property), optimize(value))
+		case MethodCall(receiver, method, args, safe) => MethodCall(optimize(receiver), optimize(method), args.map(optimize), safe)
 		case FunctionCall(target, args) => FunctionCall(optimize(target), args.map(optimize))
-		case Pipe(expr, name, args) => Pipe(optimize(expr), name, args.map(optimize))
 
 		case Binary(op, lhs, rhs) =>
 			val optLhs = optimize(lhs)
@@ -192,7 +185,7 @@ object Optimizer {
 		}
 
 		case LiteralArray(values) => LiteralArray(values.map(optimize))
-		case LiteralMap(keys, values) => LiteralMap(keys, values.map(optimize))
+		case LiteralObject(values) => LiteralObject(values.map { case (key, value) => (optimize(key), optimize(value)) })
 
 		case Interpolation(fragments) =>
 			flattenInterpolation(fragments.map {
