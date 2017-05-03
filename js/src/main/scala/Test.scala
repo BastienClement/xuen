@@ -31,6 +31,6 @@ class FooBar extends Element(FooBar) {
 object Test extends JSApp {
 	@scala.scalajs.js.annotation.JSExport
 	def main(): Unit = {
-		println(Expression.parse(""" { foo : 2, test: [{}] } """))
+		println(Expression.parse(""" a = 2 """))
 	}
 }

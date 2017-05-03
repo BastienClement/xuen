@@ -38,16 +38,16 @@ private[expression] object Parser extends Parsers {
 	}
 
 	private lazy val chain: Parser[Expression] = {
-		pipe ~ (Semicolon.+ ~> (empty | pipe)).* map {
+		pipe ~ (Semicolon.+ ~> commit(empty | pipe)).* map {
 			case head ~ tail => Chain(head :: tail)
 		}
 	}
 
 	private lazy val pipe: Parser[Expression] = {
-		simpleExpression ~ (BitOr ~! identifier ~ (Colon ~> simpleExpression).*).* map {
+		simpleExpression ~ (BitOr ~> commit(identifier) ~ (Colon ~> simpleExpression).*).* map {
 			case expr ~ pipes => (expr /: pipes) {
-				case (value, _ ~ name ~ args) =>
-					MethodCall(ImplicitReceiver, name, value :: args, safe = false)
+				case (value, name ~ args) =>
+					FunctionCall(PropertyRead(ImplicitReceiver, name, safe = false), value :: args)
 			}
 		}
 	}
@@ -55,9 +55,9 @@ private[expression] object Parser extends Parsers {
 	private lazy val simpleExpression: Parser[Expression] = conditional
 
 	private lazy val conditional: Parser[Expression] = {
-		logicalOr ~ (Question ~! conditional ~! Colon ~! conditional).? map {
+		logicalOr ~ (Question ~> commit(conditional) ~ (Colon ~> commit(conditional))).? map {
 			case or ~ None => or
-			case cond ~ Some(_ ~ yes ~ _ ~ no) => Conditional(cond, yes, no)
+			case cond ~ Some(yes ~ no) => Conditional(cond, yes, no)
 		}
 	}
 
@@ -70,10 +70,10 @@ private[expression] object Parser extends Parsers {
 	private lazy val relational: Parser[Expression] = binaryOperator(range)(Lt, Gt, LtEq, GtEq)
 
 	private lazy val range: Parser[Expression] = {
-		additive ~ (To ~! additive ~ (By ~! additive).?).? map {
+		additive ~ (To ~> commit(additive) ~ (By ~> commit(additive)).?).? map {
 			case add ~ None => add
-			case from ~ Some(_ ~ to ~ None) => Range(from, to, None)
-			case from ~ Some(_ ~ to ~ Some(_ ~ step)) => Range(from, to, Some(step))
+			case from ~ Some(to ~ None) => Range(from, to, None)
+			case from ~ Some(to ~ Some(step)) => Range(from, to, Some(step))
 		}
 	}
 
@@ -83,16 +83,65 @@ private[expression] object Parser extends Parsers {
 
 	private lazy val prefix: Parser[Expression] = {
 		val unaryOperator = accept(Plus) | accept(Minus) | accept(Exclamation)
-		unaryOperator.* ~ callChain map {
-			case operators ~ operand => (operators :\ operand)((o, a) => Unary(o.symbol, a))
+		unaryOperator.* ~ secondary map {
+			case operators ~ operand => (operators :\ operand) ((o, a) => Unary(o.symbol, a))
 		}
 	}
 
-	private lazy val callChain: Parser[Expression] = primary
+	private lazy val secondary: Parser[Expression] = {
+		primary ~ secondaryAccess.* map {
+			case receiver ~ accesses => (receiver /: accesses) ((e, f) => f(e))
+		}
+	}
+
+	private lazy val secondaryAccess: Parser[Expression => Expression] = {
+		memberAccess | bracketAccess | functionCall
+	}
+
+	private lazy val memberAccess: Parser[Expression => Expression] = {
+		val unsafeMember = Dot ~> commit(memberWrite | memberReadUnsafe)
+		val safeMember = SafeDot ~> commit(memberReadSafe)
+		unsafeMember | safeMember
+	}
+
+	private lazy val memberWrite: Parser[Expression => Expression] = {
+		identifier ~ (Equal ~> commit(simpleExpression)) map {
+			case member ~ value => PropertyWrite(_, member, value)
+		}
+	}
+
+	private lazy val memberRead: Parser[(Expression, Boolean) => Expression] = {
+		identifier map (member => PropertyRead(_, member, _))
+	}
+
+	private lazy val memberReadUnsafe: Parser[Expression => Expression] = {
+		memberRead map (builder => builder(_, false))
+	}
+
+	private lazy val memberReadSafe: Parser[Expression => Expression] = {
+		memberRead map (builder => builder(_, false))
+	}
+
+	private lazy val bracketAccess: Parser[Expression => Expression] = {
+		(LeftBracket ~> commit(simpleExpression) <~ RightBracket) ~ (Equal ~> commit(simpleExpression)).? map {
+			case key ~ None => PropertyRead(_, key, safe = false)
+			case key ~ Some(value) => PropertyWrite(_, key, value)
+		}
+	}
+
+	private lazy val functionCall: Parser[Expression => Expression] = {
+		LeftParen ~> commit(callArguments) <~ RightParen map (args => FunctionCall(_, args))
+	}
+
+	private lazy val callArguments: Parser[List[Expression]] = repsep(simpleExpression, Comma)
 
 	// Primary expression
 	private lazy val primary: Parser[Expression] = {
-		parentheses | selector | literal
+		parentheses | selector | literal | reference
+	}
+
+	private lazy val reference: Parser[Expression] = {
+		(memberWrite | memberReadUnsafe) map (builder => builder(ImplicitReceiver))
 	}
 
 	private lazy val parentheses: Parser[Expression] = {

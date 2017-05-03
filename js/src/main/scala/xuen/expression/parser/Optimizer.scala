@@ -12,13 +12,15 @@ private[expression] object Optimizer {
 			Some(js.undefined)
 
 		case Chain(exprs) =>
-			if (exprs.isEmpty) Some(scalajs.js.undefined) else staticValue(exprs.last)
+			if (exprs.isEmpty) Some(js.undefined)
+			else staticValue(exprs.last)
 
 		case Conditional(cond, yes, no) =>
 			staticTruth(cond) match {
 				case Some(true) => staticValue(yes)
 				case Some(false) => staticValue(no)
-				case None => for (y <- staticValue(yes); n <- staticValue(no); if y == n) yield y
+				case None =>
+					for (y <- staticValue(yes); n <- staticValue(no); if y == n) yield y
 			}
 
 		case PropertyWrite(_, _, value) => staticValue(value)
@@ -89,8 +91,7 @@ private[expression] object Optimizer {
 
 		case SelectorQuery(_) | LiteralPrimitive(_) => true
 
-		case PropertyRead(_, _, _) | MethodCall(_, _, _, _) | PropertyWrite(_, _, _) |
-		     FunctionCall(_, _) | Reactive(_) => false
+		case PropertyRead(_, _, _) | PropertyWrite(_, _, _) | FunctionCall(_, _) | Reactive(_) => false
 
 		case _ => throw new IllegalArgumentException(s"Cannot infer pureness from $expression")
 	}
@@ -153,7 +154,6 @@ private[expression] object Optimizer {
 
 		case PropertyRead(receiver, property, safe) => PropertyRead(optimize(receiver), optimize(property), safe)
 		case PropertyWrite(receiver, property, value) => PropertyWrite(optimize(receiver), optimize(property), optimize(value))
-		case MethodCall(receiver, method, args, safe) => MethodCall(optimize(receiver), optimize(method), args.map(optimize), safe)
 		case FunctionCall(target, args) => FunctionCall(optimize(target), args.map(optimize))
 
 		case Binary(op, lhs, rhs) =>
