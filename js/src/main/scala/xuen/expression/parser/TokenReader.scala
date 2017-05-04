@@ -1,4 +1,5 @@
-package xuen.expression.parser
+package xuen.expression
+package parser
 
 import scala.util.parsing.input.{NoPosition, Position, Reader}
 

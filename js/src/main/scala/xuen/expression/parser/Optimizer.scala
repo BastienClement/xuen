@@ -1,15 +1,16 @@
-package xuen.expression.parser
+package xuen.expression
+package parser
 
 import scala.scalajs.js
 import scala.scalajs.js.DynamicImplicits.truthValue
-import xuen.expression.Expression
+import scala.scalajs.js.JSConverters._
+import scala.util.Try
 import xuen.expression.Expression._
 
 private[expression] object Optimizer {
 	/** Attempts to find known compile time value */
 	private def staticValue(expression: Expression): Option[Any] = expression match {
-		case Empty =>
-			Some(js.undefined)
+		case Empty => Some(js.undefined)
 
 		case Chain(exprs) =>
 			if (exprs.isEmpty) Some(js.undefined)
@@ -23,8 +24,26 @@ private[expression] object Optimizer {
 					for (y <- staticValue(yes); n <- staticValue(no); if y == n) yield y
 			}
 
+		case expr @ PropertyRead(receiver, property, _) =>
+			for {
+				_ <- staticValue(property)
+				_ <- staticValue(receiver)
+			} yield Interpreter.evaluate(expr.copy(safe = true))(Context.Dummy)
+
 		case PropertyWrite(_, _, value) => staticValue(value)
-		case LiteralPrimitive(value) => Some(value)
+
+		case Binary(op, lhs, rhs) =>
+			for {
+				left <- staticValue(lhs)
+				right <- staticValue(rhs)
+				result <- staticBinary(op, left.asInstanceOf[js.Dynamic], right.asInstanceOf[js.Dynamic])
+			} yield result
+
+		case Unary(op, operand) =>
+			for {
+				value <- staticValue(operand)
+				result <- staticUnary(op, value.asInstanceOf[js.Dynamic])
+			} yield result
 
 		case Range(from, to, step) =>
 			(staticValue(from), staticValue(to), step.flatMap(staticValue)) match {
@@ -32,6 +51,20 @@ private[expression] object Optimizer {
 				case (Some(a: Int), Some(b: Int), None) => Some(a to b)
 				case _ => None
 			}
+
+		case LiteralPrimitive(value) => Some(value)
+
+		case LiteralArray(values) =>
+			val materialized = values.map(staticValue)
+			if (materialized.forall(_.isDefined)) Some(materialized.map(_.get).toJSArray)
+			else None
+
+		case LiteralObject(values) =>
+			val materialized = values.map {
+				case (k, v) => for (key <- staticValue(k); value <- staticValue(v)) yield (key.toString, value)
+			}
+			if (materialized.forall(_.isDefined)) Some(materialized.map(_.get).toMap.toJSDictionary)
+			else None
 
 		case _ => None
 	}
@@ -68,6 +101,8 @@ private[expression] object Optimizer {
 	/* An expression is pure if it does not have any visible side effects */
 	private def pure(expression: Expression): Boolean = expression match {
 		case Empty => true
+		case ImplicitReceiver => false
+
 		case Chain(exprs) => exprs.forall(pure)
 
 		case Conditional(cond, yes, no) => pure(cond) && (staticTruth(cond) match {
@@ -91,13 +126,13 @@ private[expression] object Optimizer {
 
 		case SelectorQuery(_) | LiteralPrimitive(_) => true
 
-		case PropertyRead(_, _, _) | PropertyWrite(_, _, _) | FunctionCall(_, _) | Reactive(_) => false
+		case PropertyRead(LiteralPrimitive(_), _, _) => true
 
-		case _ => throw new IllegalArgumentException(s"Cannot infer pureness from $expression")
+		case _ => false
 	}
 
 	/** Executes a binary operation at compile time */
-	private def staticBinary(op: String, lhs: js.Dynamic, rhs: js.Dynamic): Option[Any] = Some(op match {
+	private def staticBinary(op: String, lhs: js.Dynamic, rhs: js.Dynamic): Option[Any] = Try(op match {
 		case "+" => lhs + rhs
 		case "-" => lhs - rhs
 		case "*" => lhs * rhs
@@ -113,16 +148,14 @@ private[expression] object Optimizer {
 		case "!=" => lhs != rhs
 		case "===" => lhs eq rhs
 		case "!==" => lhs ne rhs
-		case _ => return None
-	})
+	}).toOption
 
 	/** Executes a unary operation at compile time */
-	private def staticUnary(op: String, operand: js.Dynamic): Option[Any] = Some(op match {
+	private def staticUnary(op: String, operand: js.Dynamic): Option[Any] = Try(op match {
 		case "+" => operand.unary_+()
 		case "-" => operand.unary_-()
 		case "!" => operand.unary_!()
-		case _ => return None
-	})
+	}).toOption
 
 	/** Joins sequential StringFragments in the interpolation */
 	private def flattenInterpolation(fragments: List[InterpolationFragment]): List[InterpolationFragment] = fragments match {
@@ -131,16 +164,31 @@ private[expression] object Optimizer {
 		case head :: tail => head :: flattenInterpolation(tail)
 	}
 
-	/** Optimize the given expression */
-	def optimize(expression: Expression): Expression = expression match {
-		case Chain(expressions) if expressions.length < 1 =>
-			Empty
+	private def precomputeFragment(expr: Expression): Option[StringFragment] = {
+		if (pure(expr)) staticValue(expr).map(value => StringFragment(value.toString))
+		else None
+	}
 
+	/** Optimizes the given expression */
+	def optimize(expression: Expression): Expression = {
+		optimizeTree(expression) match {
+			case node @ LiteralPrimitive(_) => node
+			case node if pure(node) => staticValue(node).map(LiteralPrimitive).getOrElse(node)
+			case node => node
+		}
+	}
+
+	/** Performs tree-optimization son the given expression */
+	def optimizeTree(expression: Expression): Expression = expression match {
 		case Chain(expressions) =>
-			val optimized = expressions.map(optimize)
-			val filtered = optimized.dropRight(1).filter(!pure(_)) :+ optimized.last
-			if (filtered.length == 1) filtered.head
-			else Chain(filtered)
+			if (expressions.isEmpty) {
+				Empty
+			} else {
+				val optimized = expressions.map(optimize)
+				val filteredInit = optimized.init.filter(!pure(_))
+				if (filteredInit.isEmpty) optimized.last
+				else Chain(filteredInit :+ optimized.last)
+			}
 
 		case Conditional(cond, yes, no) =>
 			val optCond = optimize(cond)
@@ -152,11 +200,16 @@ private[expression] object Optimizer {
 				case None => Conditional(optCond, optYes, optNo)
 			}
 
-		case PropertyRead(receiver, property, safe) => PropertyRead(optimize(receiver), optimize(property), safe)
-		case PropertyWrite(receiver, property, value) => PropertyWrite(optimize(receiver), optimize(property), optimize(value))
-		case FunctionCall(target, args) => FunctionCall(optimize(target), args.map(optimize))
+		case PropertyRead(receiver, property, safe) =>
+			PropertyRead(optimize(receiver), optimize(property), safe)
 
-		case Binary(op, lhs, rhs) =>
+		case PropertyWrite(receiver, property, value) =>
+			PropertyWrite(optimize(receiver), optimize(property), optimize(value))
+
+		case FunctionCall(target, args) =>
+			FunctionCall(optimize(target), args.map(optimize))
+
+		case Binary(op @ ("||" | "&&"), lhs, rhs) =>
 			val optLhs = optimize(lhs)
 			lazy val optRhs = optimize(rhs)
 			(op, staticTruth(optLhs)) match {
@@ -164,20 +217,14 @@ private[expression] object Optimizer {
 				case ("||", Some(false)) if pure(optLhs) => optRhs
 				case ("&&", Some(false)) => optLhs
 				case ("&&", Some(true)) if pure(optLhs) => optRhs
-				case _ =>
-					(for {
-						left <- staticValue(optLhs)
-						right <- staticValue(optRhs)
-						value <- staticBinary(op, left.asInstanceOf[js.Dynamic], right.asInstanceOf[js.Dynamic])
-					} yield LiteralPrimitive(value)).getOrElse(Binary(op, optLhs, optRhs))
+				case _ => Binary(op, optLhs, optRhs)
 			}
 
+		case Binary(op, lhs, rhs) =>
+			Binary(op, optimize(lhs), optimize(rhs))
+
 		case Unary(op, operand) =>
-			val optOperand = optimize(operand)
-			(for {
-				value <- staticValue(operand)
-				result <- staticUnary(op, value.asInstanceOf[js.Dynamic])
-			} yield LiteralPrimitive(result)).getOrElse(Unary(op, optOperand))
+			Unary(op, optimize(operand))
 
 		case range: Range => staticValue(range) match {
 			case Some(r) => LiteralPrimitive(r)
@@ -191,11 +238,8 @@ private[expression] object Optimizer {
 			flattenInterpolation(fragments.map {
 				case f: StringFragment => f
 				case ExpressionFragment(expr) =>
-					val optExpr = optimize(expr)
-					staticValue(optExpr) match {
-						case Some(value) if pure(optExpr) => StringFragment(value.toString)
-						case _ => ExpressionFragment(optExpr)
-					}
+					val optimized = optimize(expr)
+					precomputeFragment(optimized).getOrElse(ExpressionFragment(optimized))
 			}.toList) match {
 				case StringFragment(value) :: Nil => LiteralPrimitive(value)
 				case ExpressionFragment(expr) :: Nil => expr
@@ -204,8 +248,6 @@ private[expression] object Optimizer {
 
 		case Enumerator(index, key, iterable, by, filter, locals) =>
 			Enumerator(index, key, optimize(iterable), by.map(optimize), filter.map(optimize), locals.map(optimize))
-
-		case Reactive(expr) => Reactive(optimize(expr))
 
 		case _ => expression
 	}

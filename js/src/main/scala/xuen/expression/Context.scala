@@ -1,6 +1,7 @@
 package xuen.expression
 
 import scala.scalajs.js
+import scala.scalajs.js.UndefOr
 
 trait Context {
 	def has(key: String): Boolean
@@ -30,6 +31,15 @@ object Context {
 			case _ => throw new IllegalAccessException("Setting an undefined property on the reference object is not allowed")
 		}
 		def invokeTarget: js.Dynamic = ref
+		def selectElement(selector: String): Any = ???
+		def child(properties: (String, Any)*): Context = ???
+	}
+
+	object Dummy extends Context {
+		def has(key: String): Boolean = ???
+		def get(key: String): UndefOr[Any] = ???
+		def set(key: String, value: Any): Unit = ???
+		def invokeTarget: js.Dynamic = ???
 		def selectElement(selector: String): Any = ???
 		def child(properties: (String, Any)*): Context = ???
 	}

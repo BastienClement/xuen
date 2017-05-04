@@ -1,4 +1,5 @@
-package xuen.expression.parser
+package xuen.expression
+package parser
 
 import scala.language.implicitConversions
 import scala.scalajs.js
@@ -119,7 +120,7 @@ private[expression] object Parser extends Parsers {
 	}
 
 	private lazy val memberReadSafe: Parser[Expression => Expression] = {
-		memberRead map (builder => builder(_, false))
+		memberRead map (builder => builder(_, true))
 	}
 
 	private lazy val bracketAccess: Parser[Expression => Expression] = {

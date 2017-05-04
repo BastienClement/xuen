@@ -39,8 +39,6 @@ object Expression {
 		val indexKey: String = index.getOrElse("$key")
 	}
 
-	case class Reactive(expression: Expression) extends Expression
-
 	def parse(input: String): Either[ExpressionError, Expression] = {
 		Lexer(input).flatMap(Parser(_, Parser.expression))
 	}

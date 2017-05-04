@@ -1,8 +1,8 @@
-package xuen.expression.parser
+package xuen.expression
+package parser
 
 import java.lang.Double.parseDouble
 import scala.util.parsing.combinator.RegexParsers
-import xuen.expression.ExpressionLexerError
 import xuen.expression.parser.Token._
 
 private[expression] object Lexer extends RegexParsers {
