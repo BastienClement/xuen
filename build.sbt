@@ -32,7 +32,7 @@ lazy val xuen = crossProject.in(file(".")).settings(
 		"org.scala-lang.modules" %%% "scala-parser-combinators" % "1.0.5"
 	),
 	jsDependencies ++= Seq(
-		("org.webjars.npm" % "less" % "2.7.2").intransitive() /
+		"org.webjars.bower" % "less" % "2.7.2" /
 			"2.7.2/dist/less.js" minified "2.7.2/dist/less.min.js"
 	)
 )

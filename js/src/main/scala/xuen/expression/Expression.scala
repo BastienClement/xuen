@@ -14,7 +14,6 @@ object Expression {
 	case class Conditional(cond: Expression, yes: Expression, no: Expression) extends Expression
 
 	case class PropertyRead(receiver: Expression, property: Expression, safe: Boolean) extends Expression
-	case class MethodCall(receiver: Expression, method: Expression, args: Seq[Expression], safe: Boolean) extends Expression
 	case class PropertyWrite(receiver: Expression, property: Expression, value: Expression) extends Expression
 
 	case class FunctionCall(target: Expression, args: Seq[Expression]) extends Expression
@@ -39,8 +38,6 @@ object Expression {
 	                      filter: Option[Expression], locals: Option[Expression]) extends Expression {
 		val indexKey: String = index.getOrElse("$key")
 	}
-
-	case class Reactive(expression: Expression) extends Expression
 
 	def parse(input: String): Either[ExpressionError, Expression] = {
 		Lexer(input).flatMap(Parser(_, Parser.expression))

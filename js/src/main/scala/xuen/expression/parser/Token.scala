@@ -1,4 +1,5 @@
-package xuen.expression.parser
+package xuen.expression
+package parser
 
 private[parser] sealed trait Token
 
