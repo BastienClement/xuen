@@ -1,5 +1,5 @@
 package xuen.signal
 
-class Observer[-T] {
-
+class Observer {
+	private[signal] def trigger(): Unit = ()
 }

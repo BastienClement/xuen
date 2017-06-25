@@ -1,6 +1,8 @@
 package xuen.signal
 
-class Source[T] private (initialValue: Option[T]) extends Mutable[T] {
+import xuen.signal.tools.MutationContext
+
+final class Source[T] private (initialValue: Option[T]) extends Mutable[T] {
 	/** The current value of this signal */
 	private[this] var currentValue: Option[T] = initialValue
 
@@ -8,16 +10,16 @@ class Source[T] private (initialValue: Option[T]) extends Mutable[T] {
 	protected def current: Option[T] = currentValue
 
 	/** Updates the current value of this signal */
-	protected def current_= (value: Option[T]): Unit = {
+	protected def current_= (value: Option[T]): Unit = MutationContext.execute {
 		currentValue = value
-		invalidateChildren()
+		notifyUpdate()
 	}
 
 	/** Updates the current value of this signal */
 	def := (value: T): Unit = current = Some(value)
 
 	/** Clears the value of this signal */
-	def := (empty: UndefinedValue.type): Unit = current = None
+	def := (empty: UndefinedState.type): Unit = current = None
 }
 
 object Source {

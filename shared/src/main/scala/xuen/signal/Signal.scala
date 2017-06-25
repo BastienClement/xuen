@@ -1,6 +1,7 @@
 package xuen.signal
 
 import scala.language.{higherKinds, implicitConversions}
+import xuen.signal.tools.{MutationContext, TracingContext}
 
 /**
   * A Signal is a container for a value that can change with time.
@@ -39,7 +40,7 @@ trait Signal[+T] {
 	  * @param f the function to apply to this signal value
 	  * @tparam U the type of value of the new signal
 	  */
-	def map[U](f: T => U): Signal[U]
+	final def map[U](f: T => U): Signal[U] = Signal.define(option.map(f))
 
 	/**
 	  * Creates a new signal whose value will be the same as the signal
@@ -51,7 +52,7 @@ trait Signal[+T] {
 	  * @param f the function to apply to this signal value
 	  * @tparam U the type of the value of the new signal
 	  */
-	def flatMap[U](f: (T) => Signal[U]): Signal[U]
+	final def flatMap[U](f: (T) => Signal[U]): Signal[U] = Signal.define(option.map(f(_).value))
 
 	/**
 	  * Creates a new signal that will have the same value as this signal when
@@ -59,13 +60,22 @@ trait Signal[+T] {
 	  *
 	  * @param p the predicate function
 	  */
-	def filter(p: T => Boolean): Signal[T]
+	final def filter(p: T => Boolean): Signal[T] = Signal.define(option.filter(p))
+
+	final def fold[U](initial: U)(f: (U, T) => U): Signal[U] = {
+		var last = initial
+		Signal.apply({last = option.map(f(last, _)).getOrElse(last); last}, EvaluationMode.Strict)
+	}
+
+	final def reduce[U >: T](f: (U, T) => U): Signal[U] = {
+		fold(None: Option[U])((prev, cur) => prev.map(p => f(p, cur)).orElse(Some(cur))).unwrap
+	}
+
+	final def wrap: Signal[Option[T]] = Signal.apply(option)
+
+	final def unwrap[U](implicit ev: T <:< Option[U]): Signal[U] = Signal.define(ev(value))
 
 	final def flatten[U](implicit ev: T <:< Signal[U]): Signal[U] = flatMap(ev)
-
-	final def lift: Signal[Option[T]] = Signal(option)
-
-	final def unlift[U](implicit ev: T <:< Option[U]): Signal[U] = Signal.define(ev(value))
 }
 
 object Signal {
@@ -83,33 +93,37 @@ object Signal {
 	  * @tparam T the type of the signal
 	  * @return the [[Undefined]] signal singleton
 	  */
-	def undefined[T]: Undefined.type = Undefined
+	def undefined[T]: Signal[T] = Undefined
 
 	/**
 	  * Constructs a computed signal from the given expression.
 	  * Dependencies will be automatically detected and bound.
 	  *
-	  * @param expr the definition expression
+	  * @param defn the definition expression
 	  * @tparam T the type of the signal
 	  */
-	def apply[T](expr: => T): Expression[T] = new Expression(Some(expr))
+	def apply[T](defn: => T, mode: EvaluationMode = EvaluationMode.Lazy): Signal[T] = define(Some(defn), mode)
 
 	/**
 	  * Defines a computed signal from the given expression.
 	  * Behave like [[apply]] except that the generator is expected to
 	  * return an [[Option]] instead of a value of type [[T]].
 	  *
-	  * @param definition the definition expression
+	  * THE ULTIMATE SIGNAL BUILDER
+	  *
+	  * @param defn the definition expression
 	  * @tparam T the type of the signal
 	  */
-	def define[T](definition: => Option[T]): Expression[T] = new Expression(definition)
-
-	/** Wraps a constant value inside a signal */
-	implicit def wrap[T](value: T): Constant[T] = Constant(value)
-
-	/** Wraps an optional constant value inside a signal */
-	implicit def fromOption[T](option: Option[T]): Immutable[T] = option match {
-		case Some(value) => Constant(value)
-		case None => Undefined
+	def define[T](defn: => Option[T], mode: EvaluationMode = EvaluationMode.Lazy): Signal[T] = {
+		TracingContext.trace(defn) match {
+			case (None, Nil) => Undefined
+			case (Some(value), Nil) => Constant(value)
+			case (state, parents) => mode match {
+				case EvaluationMode.Lazy => new Expression.LazyExpr[T](state, parents, defn)
+				case EvaluationMode.Strict => new Expression.StrictExpr[T](state, parents, defn)
+			}
+		}
 	}
+
+	def atomically[T](block: => T): T = MutationContext.execute(block)
 }

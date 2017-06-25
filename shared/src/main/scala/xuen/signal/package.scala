@@ -22,11 +22,18 @@ package object signal {
 	  * passed to the `:=` operator of [[Source]] to erase the current value
 	  * of the signal and set it undefined.
 	  */
-	case object UndefinedValue
+	case object UndefinedState
 
 	/** Implementation of an ordering based on object identity hash code */
 	private[signal] object IdentityOrdering extends Ordering[AnyRef] {
-		def compare(x: AnyRef, y: AnyRef): Int = System.identityHashCode(x) - System.identityHashCode(y)
+		def compare(x: AnyRef, y: AnyRef): Int = Integer.compare(System.identityHashCode(x), System.identityHashCode(y))
 		def forType[T <: AnyRef]: Ordering[T] = this.asInstanceOf[Ordering[T]]
+	}
+
+	sealed trait EvaluationMode
+
+	object EvaluationMode {
+		object Strict extends EvaluationMode
+		object Lazy extends EvaluationMode
 	}
 }
