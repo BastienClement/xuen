@@ -1,5 +1,5 @@
 package xuen
 
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{FreeSpec, Matchers}
 
-trait BaseSpec extends WordSpec with Matchers
+trait BaseSpec extends FreeSpec with Matchers

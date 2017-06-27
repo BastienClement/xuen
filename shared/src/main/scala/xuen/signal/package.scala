@@ -8,7 +8,7 @@ package object signal {
 	  * signal. This is usually caught by the [[Expression]] generator and
 	  * indicates that the composed signal should also be undefined.
 	  */
-	case class UndefinedSignalException() extends NoSuchElementException with ControlThrowable
+	case class UndefinedSignalException(signal: Signal[_]) extends NoSuchElementException with ControlThrowable
 
 	/**
 	  * An exception thrown when the generation of an [[Expression]]-defined
@@ -16,13 +16,6 @@ package object signal {
 	  * forming a circular dependency between two signals.
 	  */
 	case class CircularDependencyException() extends Throwable
-
-	/**
-	  * An object representing the "undefined" state of a signal. It can be
-	  * passed to the `:=` operator of [[Source]] to erase the current value
-	  * of the signal and set it undefined.
-	  */
-	case object UndefinedState
 
 	/** Implementation of an ordering based on object identity hash code */
 	private[signal] object IdentityOrdering extends Ordering[AnyRef] {

@@ -13,7 +13,7 @@ package xuen.signal
 abstract class Expression[T] private (initialState: Option[T], parents: List[Mutable[_]], defn: => Option[T])
 		extends Child[T](true, initialState, parents) {
 	/** Generates the signal value from the definition expression */
-	protected def generate: Option[T] = defn
+	protected def generate: Option[T] = try defn catch { case UndefinedSignalException(_) => None }
 }
 
 object Expression {

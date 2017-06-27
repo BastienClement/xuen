@@ -15,6 +15,9 @@ import xuen.signal.tools.{MutationContext, TracingContext}
 abstract class Child[T] (private[this] var available: Boolean = false,
                          private[this] var currentState: Option[T] = None,
                          private[this] var parents: List[Mutable[_]] = Nil) extends Mutable[T] {
+	// Attach child to parents
+	parents.foreach(_ attach this)
+
 	/** Flag used to detect circular dependencies during generation */
 	private[this] var generating: Boolean = false
 

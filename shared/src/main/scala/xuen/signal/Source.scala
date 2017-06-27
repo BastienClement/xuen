@@ -18,8 +18,17 @@ final class Source[T] private (initialValue: Option[T]) extends Mutable[T] {
 	/** Updates the current value of this signal */
 	def := (value: T): Unit = current = Some(value)
 
-	/** Clears the value of this signal */
-	def := (empty: UndefinedState.type): Unit = current = None
+	def ~= (f: T => T): Unit = for (value <- currentValue) current = Some(f(value))
+
+	/**
+	  * Clears the value of this signal
+	  *
+	  * This method should be invoked as:
+	  * `source := Source.nil`
+	  *
+	  * @param empty a dummy parameter that is never evaluated
+	  */
+	def := (empty: Source.nil.type): Unit = current = None
 }
 
 object Source {
@@ -28,6 +37,8 @@ object Source {
 
 	/** Creates a new undefined Source */
 	def undefined[T]: Source[T] = new Source(None)
+
+	object nil
 
 	/** Alias for [[undefined]] */
 	@inline def apply[T](): Source[T] = undefined[T]

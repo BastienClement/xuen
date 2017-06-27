@@ -11,7 +11,10 @@ class MutationContext private {
 	private[signal] def defer(signal: Strict[_]): Unit = deferred += signal
 	private[signal] def register(observer: Observer): Unit = observers += observer
 
-	private def flush(): Unit = ()
+	private def flush(): Unit = {
+		// Trigger signal generation for every deferred strict signals
+		for (signal <- deferred) signal.option
+	}
 }
 
 object MutationContext {

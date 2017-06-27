@@ -1,6 +1,9 @@
 package xuen.signal
 
+import javax.xml.ws.ServiceMode
 import scala.language.{higherKinds, implicitConversions}
+import scala.util.{Failure, Success, Try}
+import sun.invoke.empty.Empty
 import xuen.signal.tools.{MutationContext, TracingContext}
 
 /**
@@ -30,7 +33,7 @@ trait Signal[+T] {
 	  */
 	final def value: T = option match {
 		case Some(value) => value
-		case None => throw UndefinedSignalException()
+		case None => throw UndefinedSignalException(this)
 	}
 
 	/**
@@ -85,7 +88,7 @@ object Signal {
 	  * This can be used to return from expression defined signals and result
 	  * in an undefined signal.
 	  */
-	def nil: Nothing = throw UndefinedSignalException()
+	def nil: Nothing = throw UndefinedSignalException(null)
 
 	/**
 	  * Constructs an undefined signal ot type T.
@@ -115,7 +118,7 @@ object Signal {
 	  * @tparam T the type of the signal
 	  */
 	def define[T](defn: => Option[T], mode: EvaluationMode = EvaluationMode.Lazy): Signal[T] = {
-		TracingContext.trace(defn) match {
+		TracingContext.trace(try defn catch {case UndefinedSignalException(_) => None}) match {
 			case (None, Nil) => Undefined
 			case (Some(value), Nil) => Constant(value)
 			case (state, parents) => mode match {
