@@ -1,9 +1,6 @@
 package xuen.signal
 
-import javax.xml.ws.ServiceMode
 import scala.language.{higherKinds, implicitConversions}
-import scala.util.{Failure, Success, Try}
-import sun.invoke.empty.Empty
 import xuen.signal.tools.{MutationContext, TracingContext}
 
 /**
@@ -67,7 +64,7 @@ trait Signal[+T] {
 
 	final def fold[U](initial: U)(f: (U, T) => U): Signal[U] = {
 		var last = initial
-		Signal.apply({last = option.map(f(last, _)).getOrElse(last); last}, EvaluationMode.Strict)
+		Signal.apply({last = option.map(f(last, _)).getOrElse(last); last}, EvaluationMode.Deferred)
 	}
 
 	final def reduce[U >: T](f: (U, T) => U): Signal[U] = {
@@ -123,10 +120,21 @@ object Signal {
 			case (Some(value), Nil) => Constant(value)
 			case (state, parents) => mode match {
 				case EvaluationMode.Lazy => new Expression.LazyExpr[T](state, parents, defn)
-				case EvaluationMode.Strict => new Expression.StrictExpr[T](state, parents, defn)
+				case EvaluationMode.Deferred => new Expression.DelayedExpr[T](state, parents, defn)
 			}
 		}
 	}
 
-	def atomically[T](block: => T): T = MutationContext.execute(block)
+	/**
+	  * Executes a block atomically.
+	  *
+	  * Deferred signal evaluation and observers trigger will be delayed until
+	  * the end of the block. As such, every mutations will be applied once
+	  * deferred signals and observers are evaluated.
+	  *
+	  * @param block
+	  * @tparam T
+	  * @return
+	  */
+	def atomically[T](block: => T): T = MutationContext.execute(_ => block)
 }

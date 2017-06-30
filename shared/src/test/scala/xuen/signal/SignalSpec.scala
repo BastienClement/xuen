@@ -258,6 +258,20 @@ class SignalSpec extends BaseSpec {
 			s ~= (_ + 1)
 			s.option shouldBe None
 		}
+		"the ~= operator should not bind the invoker" in {
+			val s = Source(1)
+			val t = Source(0)
+			val o = Observer(t ~= (_ + s.value))
+			// The fact that nothing blew up there is already proof that the
+			// operator is working as intended. If o was bound to t in its
+			// definition, an infinite recursion would occur. Doing some more
+			// tests just for fun.
+			t.value shouldBe 1
+			s := 2
+			t.value shouldBe 3
+			t := 0
+			t.value shouldBe 0 // t := does not trigger the observer
+		}
 	}
 	"Expression" - {
 		"handle undefined parents" in {
@@ -279,17 +293,12 @@ class SignalSpec extends BaseSpec {
 	}
 	"Mutation context" - {
 		"can be nested" in {
-			MutationContext.execute {
-				val outer = MutationContext.implicitly
-				MutationContext.execute {
-					val inner = MutationContext.implicitly
+			MutationContext.execute { outer =>
+				MutationContext.execute { inner =>
 					outer should be theSameInstanceAs inner
 					2
 				}
 			} shouldBe 2
-		}
-		"cannot be found implicitly if not open" in {
-			an[IllegalStateException] should be thrownBy MutationContext.implicitly
 		}
 		"can be used to build atomic mutation operations" in {
 			val a = Source(1)
@@ -300,6 +309,65 @@ class SignalSpec extends BaseSpec {
 				a := 3
 			}
 			b.value shouldBe 4
+		}
+		"can catch a single exception" in {
+			val s = Source(1)
+			var a = 0
+			val u = Observer({if (s.value == 0) ???; a += 1})
+			val v = Observer({s.value; a += 2})
+			// Both u and v are bound to the s source
+			a shouldBe 3 // u + v were invoked once
+			val e = the[MutationContext.MutationException] thrownBy (s := 0)
+			e.count shouldBe 1
+			e.causes should matchPattern { case List(_: NotImplementedError) => }
+			a shouldBe 5 // the exception thrown by u should not have prevented v
+		}
+		"can catch multiple exceptions" in {
+			val s = Source(1)
+			val u = Observer(if (s.value == 0) ???)
+			val v = Observer(if (s.value == 0) ???)
+			val e = the[MutationContext.MutationException] thrownBy (s := 0)
+			e.count shouldBe 2
+			all(e.causes) shouldBe an[NotImplementedError]
+		}
+	}
+	"Observers" - {
+		"are evaluated eagerly" in {
+			var a = 0
+			Observer({a = 1})
+			a shouldBe 1
+		}
+		"can be bound and unbound" in {
+			val s = Source(1)
+			var a = 0
+			val o = Observer(a += s.value)
+			a shouldBe 1
+			// Calling twice to trigger the safety branch in code coverage
+			o.unbind()
+			o.unbind()
+			s := 2
+			a shouldBe 1
+			o.bind()
+			a shouldBe 3
+			o.bind() // Only the first call is effective
+			a shouldBe 3
+			s := 5
+			a shouldBe 8
+		}
+		"cannot mutate a parent signal" in {
+			val s = Source(1)
+			val o = Observer {
+				// Cannot use ~= here since the operator is explicitly non-biding,
+				// need to use `.value` explicitly
+				s := s.value + 1
+			}
+			// Unable to detect illegal reference at definition-time, s is updated
+			s.value shouldBe 2
+			val e = the[MutationContext.MutationException] thrownBy (s := 0)
+			e.count shouldBe 1
+			e.causes.head shouldBe an[IllegalStateException]
+			// A failing observer should not prevent the source from being mutated
+			s.value shouldBe 0
 		}
 	}
 }

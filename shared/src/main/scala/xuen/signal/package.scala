@@ -26,7 +26,7 @@ package object signal {
 	sealed trait EvaluationMode
 
 	object EvaluationMode {
-		object Strict extends EvaluationMode
+		object Deferred extends EvaluationMode
 		object Lazy extends EvaluationMode
 	}
 }

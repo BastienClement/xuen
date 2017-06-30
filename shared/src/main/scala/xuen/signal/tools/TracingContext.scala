@@ -4,7 +4,17 @@ package tools
 import scala.collection.mutable
 import scala.util.DynamicVariable
 
+/***
+  * A TracingContext is used to automatically detect signals used by an
+  * arbitrary block of code.
+  *
+  * A new tracing context is created for every call to `trace`, accessing
+  * the state of any mutable signal will cause it to register itself with
+  * the tracing context. Once the evaluation of the block is complete, the
+  * list of used signals is available in the context object.
+  */
 class TracingContext private {
+	/** The set of signal used during execution of the traced block */
 	private val signals = mutable.Buffer.empty[Mutable[_]]
 
 	/**
@@ -49,7 +59,7 @@ object TracingContext {
 
 	/** Implicitly retrieves the current tracing context */
 	implicit def implicitly: TracingContext = current.value match {
-		case null ⇒ DummyContext
+		case null => DummyContext
 		case ctx => ctx
 	}
 

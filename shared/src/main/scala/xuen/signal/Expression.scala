@@ -17,8 +17,8 @@ abstract class Expression[T] private (initialState: Option[T], parents: List[Mut
 }
 
 object Expression {
-	private[signal] class StrictExpr[T] (initialState: Option[T], parents: List[Mutable[_]], defn: => Option[T])
-			extends Expression[T](initialState, parents, defn) with Strict[T]
+	private[signal] class DelayedExpr[T] (initialState: Option[T], parents: List[Mutable[_]], defn: => Option[T])
+			extends Expression[T](initialState, parents, defn) with Deferred[T]
 
 	private[signal] class LazyExpr[T] (initialState: Option[T], parents: List[Mutable[_]], defn: => Option[T])
 			extends Expression[T](initialState, parents, defn) with Lazy[T]

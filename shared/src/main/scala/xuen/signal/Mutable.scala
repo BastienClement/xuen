@@ -1,6 +1,5 @@
 package xuen.signal
 
-import scala.collection.immutable.TreeSet
 import xuen.signal.tools.{MutationContext, TracingContext}
 
 /**
@@ -24,18 +23,20 @@ trait Mutable[T] extends Signal[T] {
 	/** The set of children dependant on this signal value for their own value */
 	private[this] var children: Set[Child[_]] = Set.empty
 
-	/** The list of observers bound to this signal */
-	private[this] var observers: List[Observer] = Nil
+	/** The set of observers bound to this signal */
+	private[this] var observers: Set[Observer] = Set.empty
 
 	/** Attaches a new child signal */
 	private[signal] final def attach(child: Child[_]): Unit = children += child
+	private[signal] final def attach(child: Observer): Unit = observers += child
 
 	/** Detaches a child signal */
 	private[signal] final def detach(child: Child[_]): Unit = children -= child
+	private[signal] final def detach(child: Observer): Unit = observers -= child
 
 	/** Invalidates signals that are dependant on this one */
 	protected final def notifyUpdate()(implicit mc: MutationContext): Unit = {
-		observers.foreach(mc.register)
+		mc.register(observers)
 		for (child <- children) child.invalidate()
 		// No need to clear the `children` set since children will detach themselves on invalidate
 	}
