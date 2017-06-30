@@ -262,10 +262,6 @@ class SignalSpec extends BaseSpec {
 			val s = Source(1)
 			val t = Source(0)
 			val o = Observer(t ~= (_ + s.value))
-			// The fact that nothing blew up there is already proof that the
-			// operator is working as intended. If o was bound to t in its
-			// definition, an infinite recursion would occur. Doing some more
-			// tests just for fun.
 			t.value shouldBe 1
 			s := 2
 			t.value shouldBe 3
