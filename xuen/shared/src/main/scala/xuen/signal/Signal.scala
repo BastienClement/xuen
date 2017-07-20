@@ -63,7 +63,7 @@ trait Signal[+T] {
 	final def filter(p: T => Boolean): Signal[T] = Signal.define(option.filter(p))
 	final def withFilter(p: T => Boolean): Signal[T] = filter(p)
 
-	final def collect[U](pf: PartialFunction[T, U]): Signal[U] = map(pf.lift).unwrap
+	final def collect[U](pf: PartialFunction[T, U]): Signal[U] = Signal.define(pf.lift(value))
 
 	final def fold[U](initial: U)(f: (U, T) => U): Signal[U] = {
 		var last = initial
