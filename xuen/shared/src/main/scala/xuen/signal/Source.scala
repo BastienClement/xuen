@@ -1,5 +1,7 @@
 package xuen.signal
 
+import xuen.signal.tools.MutationContext
+
 final class Source[T] private (initialValue: Option[T]) extends Mutable[T] {
 	/** The current value of this signal */
 	private[this] var currentValue: Option[T] = initialValue

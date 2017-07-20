@@ -1,6 +1,7 @@
 package xuen.signal
 
 import scala.language.{higherKinds, implicitConversions}
+import xuen.signal.tools.{MutationContext, TracingContext}
 
 /**
   * A Signal is a container for a value that can change with time.

@@ -1,6 +1,7 @@
 package xuen.signal
 
 import scala.util.{Failure, Success, Try}
+import xuen.signal.tools.TracingContext
 
 final class Observer private (body: => Unit) {
 	private var bound = false
