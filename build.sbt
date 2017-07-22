@@ -32,7 +32,7 @@ lazy val xuen = crossProject(JVMPlatform, JSPlatform).crossType(CrossType.Full).
 ).jvmSettings(
 ).jsSettings(
 	jsEnv := new SeleniumJSEnv(ChromeEnv),
-	//scalaJSUseMainModuleInitializer := true,
+	scalaJSUseMainModuleInitializer := true,
 	skip in packageJSDependencies := false,
 	scalaJSOutputMode := ECMAScript6,
 	scalacOptions ++= Seq(

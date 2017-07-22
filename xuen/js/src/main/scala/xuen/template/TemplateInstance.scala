@@ -55,10 +55,7 @@ case class TemplateInstance private[template] (template: Template, root: HTMLTem
 	}
 
 	def mount(host: dom.Node, before: dom.Node = null): Unit = {
-		nodes.fold(before)((b, n) => {
-			host.insertBefore(n, b)
-			n.nextSibling
-		})
+		for (node <- nodes) host.insertBefore(node, before)
 	}
 
 	def unmount(): Unit = mount(root.content)

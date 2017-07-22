@@ -118,7 +118,7 @@ object Compiler {
 	private def compilePropertyBindingAttribute(element: dom.Element, name: String, value: Option[String])
 	                                           (implicit tpl: Template): Unit = {
 		val propertyName = name.substring(1, name.length - 1)
-		if (value.isEmpty) element.getAttributeNode(name).value = name
+		if (value.isEmpty) element.getAttributeNode(name).value = propertyName
 		element.attachAttributeExpression(name) { (el, value, _) =>
 			el.asInstanceOf[js.Dynamic].selectDynamic(propertyName).asInstanceOf[Any] match {
 				case source: Source[_] => source.asInstanceOf[Source[Any]] := value
@@ -148,7 +148,7 @@ object Compiler {
 
 	/** Compiles a simple attribute interpolation */
 	private def compileAttributeInterpolation(element: dom.Element, name: String, value: Option[String])
-	                                           (implicit tpl: Template): Unit = {
+	                                         (implicit tpl: Template): Unit = {
 		Expression.parseInterpolation(value getOrElse name) match {
 			case Left(err) => dom.console.error(err.toString, element)
 			case Right(None) => // No interpolation found
@@ -223,14 +223,16 @@ object Compiler {
 			val (child, placeholder) = templateWrap(element, "*for " + source)
 			placeholder.attachBehavior { (ph, parent) =>
 				val source = Signal.defer[Iterable[(Any, Any)]] {
-					(Interpreter.evaluate(enumerator.iterable)(parent.context) match {
+					def asIterable(col: Any): Iterable[_] = col match {
 						case it: Iterable[_] => it
 						case ar: js.Array[_] => ar
+						case ar: Array[_] => ar
 						case _: Unit | null => Nil
 						case unsupported =>
 							dom.console.error(s"Unsupported iterable in for-loop: ${unsupported.getClass.getName}")
 							Nil
-					}) match {
+					}
+					asIterable(Interpreter.evaluate(enumerator.iterable)(parent.context)) match {
 						case map: Map[_, _] => map
 						case it: Iterable[_] => Stream.from(0).zip(it)
 					}

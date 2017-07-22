@@ -11,7 +11,7 @@ trait Route {
 
 object Route {
 	case class Pattern (pattern: String) extends Route {
-		val regExp = new RegExp(pattern)
+		val regExp = new RegExp("^" + pattern + "$")
 		def matching: Option[Parameters] = {
 			regExp.exec(dom.window.location.pathname) match {
 				case null => None

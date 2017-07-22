@@ -44,3 +44,7 @@ abstract class Component[E <: Element : ConstructorTag](val selector: String,
 
 	def instantiate(): E = dom.document.createElement(selector).asInstanceOf[E]
 }
+
+object Component {
+	def register(components: Component[_]*): Unit = ()
+}
