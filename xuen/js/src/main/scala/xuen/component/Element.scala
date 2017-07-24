@@ -8,7 +8,7 @@ import scala.scalajs.js
 import scala.util.DynamicVariable
 import xuen.component.Element.AttributeBinding
 import xuen.expression.Context
-import xuen.facades.webcomponents.{ShadowRootInit, ShadowRootMode}
+import xuen.facades.webcomponents.{ShadowRoot, ShadowRootInit, ShadowRootMode}
 import xuen.facades.webcomponents.ShadowDOM.enableShadowDOM
 import xuen.signal.{Signal, Source}
 import xuen.template.TemplateInstance
@@ -24,7 +24,7 @@ import xuen.utils.Event
   */
 abstract class Element (component: Component[_]) extends html.Element {
 	/** The shadow root of this element. */
-	val shadow = this.attachShadow(new ShadowRootInit {
+	def shadow: ShadowRoot = this.shadowRoot.filter(_ != null) getOrElse this.attachShadow(new ShadowRootInit {
 		val mode: ShadowRootMode = ShadowRootMode.open
 	})
 
@@ -49,15 +49,21 @@ abstract class Element (component: Component[_]) extends html.Element {
 		styles
 	}
 
+	/** The connected state of the component */
+	def isConnected: Boolean = connected
+	private var connected = false
+
 	/** Called by the browser when the element is connected to the document DOM */
 	final def connectedCallback(): Unit = if (!Element.forcedUpgrade.value) {
+		connected = true
 		for (tpl <- template) tpl.enable()
 		this.dispatchEvent("xuen:connected")
 	}
 
 	/** Called by the browser when the element is disconnected from the document DOM */
 	final def disconnectedCallback(): Unit = if (!Element.forcedUpgrade.value) {
-		this.dispatchEvent("xuen:disconnected")
+		connected = false
+		dispatchEvent("xuen:disconnected")
 		for (tpl <- template) tpl.disable()
 	}
 
@@ -99,6 +105,17 @@ abstract class Element (component: Component[_]) extends html.Element {
 	/** Setups a property with the given initial value */
 	def property[T](value: T): Source[T] = Source(value)
 
+	/** Listen to a custom event */
+	def listenEvent[T <: dom.Event](event: Event[T], flags: Event.ListenerFlags = Event.ListenerFlagsDefault)
+	                               (handler: T => Unit): Event.Listener = {
+		Event.listenCustom(this, event, flags, handler)
+	}
+
+	/** Dispatches a custom event */
+	def dispatchEvent(name: String, detail: Any = null, flags: Event.EventFlags = Event.EventFlagsDefault): Boolean = {
+		Event.dispatchCustom(this, name, detail, flags)
+	}
+
 	/** Setups the mutation observer used to drive attribute bindings */
 	private def setupAttributeObserver(): Unit = {
 		new MutationObserver((records, _) => {
@@ -113,12 +130,10 @@ abstract class Element (component: Component[_]) extends html.Element {
 }
 
 object Element {
-	@inline implicit def enhancedEventRegister(el: Element): Event.CustomRegister = new Event.CustomRegister(el)
-	@inline implicit def enhancedEventDispatch(el: Element): Event.CustomDispatch = new Event.CustomDispatch(el)
-
 	private val forcedUpgradeContainer = dom.document.createElement("xuen:upgrade")
 	private val forcedUpgrade = new DynamicVariable[Boolean](false)
 
+	/** Force upgrade of custom element in the template and then mount it */
 	private def upgradeAndMount(instance: TemplateInstance, host: dom.Node, before: dom.Element = null): Unit = {
 		val first = !forcedUpgrade.value
 		if (first) dom.document.documentElement.appendChild(forcedUpgradeContainer)

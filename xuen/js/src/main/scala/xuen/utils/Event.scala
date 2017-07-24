@@ -24,43 +24,59 @@ object Event {
 	@inline
 	implicit def Custom(name: String): Event[dom.CustomEvent] = new Event[dom.CustomEvent](name)
 
-	def createCustom(name: String, detail: Any = null, composed: Boolean = false,
-	                 bubbles: Boolean = false, cancelable: Boolean = false): dom.CustomEvent = {
+	case class EventFlags (composed: js.UndefOr[Boolean] = js.undefined,
+	                       bubbles: js.UndefOr[Boolean] = js.undefined,
+	                       cancelable: js.UndefOr[Boolean] = js.undefined)
+	val EventFlagsDefault = EventFlags()
+
+	def createCustom(name: String, detail: Any = null, flags: EventFlags = EventFlagsDefault): dom.CustomEvent = {
 		jsnew(g.CustomEvent)(name, lit(
 			detail = detail.asInstanceOf[js.Any],
-			composed = composed,
-			bubbles = bubbles,
-			cancelable = cancelable
+			composed = flags.composed,
+			bubbles = flags.bubbles,
+			cancelable = flags.cancelable
 		)).asInstanceOf[dom.CustomEvent]
 	}
 
-	def dispatchCustom(target: dom.EventTarget, name: String, detail: Any = null, composed: Boolean = false,
-	                   bubbles: Boolean = false, cancelable: Boolean = false): Boolean = {
-		dom.document.dispatchEvent(createCustom(name, detail,
-			composed = composed,
-			bubbles = bubbles,
-			cancelable = cancelable))
+	def dispatchCustom(target: dom.EventTarget, name: String, detail: Any = null,
+	                   flags: EventFlags = EventFlagsDefault): Boolean = {
+		target.dispatchEvent(createCustom(name, detail, flags))
 	}
 
-	case class Listener (target: dom.EventTarget, event: String, fn: js.Function1[_ <: dom.Event, _], capture: Boolean) {
-		def remove(): Unit = target.removeEventListener(event, fn, capture)
+	case class ListenerFlags (capture: js.UndefOr[Boolean] = js.undefined,
+	                          passive: js.UndefOr[Boolean] = js.undefined,
+	                          once: js.UndefOr[Boolean] = js.undefined)
+	val ListenerFlagsDefault = ListenerFlags()
+
+	case class Listener (target: dom.EventTarget, event: String, fn: js.Function1[_ <: dom.Event, _], flags: ListenerFlags) {
+		def remove(): Unit = target.asInstanceOf[js.Dynamic].removeEventListener(event, fn, lit(
+			capture = flags.capture,
+			passive = flags.passive
+		))
 	}
 
-	implicit final class CustomRegister(private val target: dom.EventTarget) extends AnyVal {
-		@inline def on[T <: dom.Event](event: Event[T], capture: Boolean = false)(handler: T => Unit): Listener = {
-			val fn: js.Function1[_ <: dom.Event, Unit] = handler
-			target.addEventListener(event.name, fn, capture)
-			Listener(target, event.name, fn, capture)
+	def listenCustom[T <: dom.Event](target: dom.EventTarget, event: Event[T],
+	                                 flags: ListenerFlags = ListenerFlagsDefault,
+	                                 handler: T => Unit): Listener = {
+		val fn: js.Function1[_ <: dom.Event, Unit] = handler
+		target.asInstanceOf[js.Dynamic].addEventListener(event.name, fn, lit(
+			capture = flags.capture,
+			passive = flags.passive,
+			once = flags.once
+		))
+		Listener(target, event.name, fn, flags)
+	}
+
+	implicit final class CustomListen(private val target: dom.EventTarget) extends AnyVal {
+		@inline def listenEvent[T <: dom.Event](event: Event[T], flags: ListenerFlags = ListenerFlagsDefault)
+		                                       (handler: T => Unit): Listener = {
+			listenCustom(target, event, flags, handler)
 		}
 	}
 
 	implicit final class CustomDispatch (private val target: dom.EventTarget) extends AnyVal {
-		@inline def dispatchEvent(name: String, detail: Any = null, composed: Boolean = false,
-		                          bubbles: Boolean = false, cancelable: Boolean = false): Boolean = {
-			dispatchCustom(target, name, detail,
-				composed = composed,
-				bubbles = bubbles,
-				cancelable = cancelable)
+		@inline def dispatchEvent(name: String, detail: Any = null, flags: EventFlags = EventFlagsDefault): Boolean = {
+			dispatchCustom(target, name, detail, flags)
 		}
 	}
 }

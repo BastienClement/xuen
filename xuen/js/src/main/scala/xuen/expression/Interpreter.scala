@@ -1,5 +1,6 @@
 package xuen.expression
 
+import scala.annotation.tailrec
 import scala.scalajs.js
 import scala.scalajs.js.DynamicImplicits.truthValue
 import scala.scalajs.js.JSConverters._
@@ -7,11 +8,11 @@ import xuen.expression.Expression._
 import xuen.signal.Signal
 
 object Interpreter {
-	def evaluate(expr: Expression)(implicit context: Context): Any = {
-		evaluateTree(expr) match {
-			case s: Signal[Any] => s.option.getOrElse(js.undefined)
-			case value => value
-		}
+	def evaluate(expr: Expression)(implicit context: Context): Any = signalValue(evaluateTree(expr))
+
+	@tailrec private def signalValue(value: Any): Any = value match {
+		case signal: Signal[Any] => signalValue(signal.option.getOrElse(js.undefined))
+		case nonsignal => nonsignal
 	}
 
 	private def evaluateTree(expr: Expression)(implicit context: Context): Any = expr match {
@@ -56,7 +57,7 @@ object Interpreter {
 	                                        (implicit context: Context): (js.Dynamic, Any) = {
 		val key = evaluate(property).toString
 		evaluate(receiver) match {
-			case ImplicitReceiver => (null, context.get(key))
+			case ImplicitReceiver => (context.self, context.get(key))
 			case target if js.isUndefined(target) && safe => (null, js.undefined)
 			case target =>
 				val dynTarget = target.asInstanceOf[js.Dynamic]
