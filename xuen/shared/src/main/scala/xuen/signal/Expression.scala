@@ -18,8 +18,8 @@ abstract class Expression[T] private (initialAvailability: Boolean, initialState
 }
 
 object Expression {
-	private[signal] class DelayedExpr[T] (initialAvailability: Boolean, initialState: Option[T],
-	                                      parents: List[Mutable[_]], defn: => Option[T])
+	private[signal] class DeferredExpr[T] (initialAvailability: Boolean, initialState: Option[T],
+	                                       parents: List[Mutable[_]], defn: => Option[T])
 			extends Expression[T](initialAvailability, initialState, parents, defn) with Deferred[T]
 
 	private[signal] class LazyExpr[T] (initialAvailability: Boolean, initialState: Option[T],

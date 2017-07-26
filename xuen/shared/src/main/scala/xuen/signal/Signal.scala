@@ -128,7 +128,7 @@ object Signal {
 		if (defer) {
 			mode match {
 				case EvaluationMode.Lazy => new Expression.LazyExpr[T](false, None, Nil, defn)
-				case EvaluationMode.Deferred => new Expression.DelayedExpr[T](false, None, Nil, defn)
+				case EvaluationMode.Deferred => new Expression.DeferredExpr[T](false, None, Nil, defn)
 			}
 		} else {
 			TracingContext.trace(try defn catch {case UndefinedSignalException(_) => None}) match {
@@ -136,7 +136,7 @@ object Signal {
 				case (Some(value), Nil) => Constant(value)
 				case (state, parents) => mode match {
 					case EvaluationMode.Lazy => new Expression.LazyExpr[T](true, state, parents, defn)
-					case EvaluationMode.Deferred => new Expression.DelayedExpr[T](true, state, parents, defn)
+					case EvaluationMode.Deferred => new Expression.DeferredExpr[T](true, state, parents, defn)
 				}
 			}
 		}
