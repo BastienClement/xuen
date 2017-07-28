@@ -30,7 +30,7 @@ private[expression] object Optimizer {
 				_ <- staticValue(receiver)
 			} yield Interpreter.evaluate(expr.copy(safe = true))(Context.Dummy)
 
-		case PropertyWrite(_, _, value) => staticValue(value)
+		case PropertyWrite(_, _, value, _) => staticValue(value)
 
 		case Binary(op, lhs, rhs) =>
 			for {
@@ -84,7 +84,7 @@ private[expression] object Optimizer {
 		case Conditional(cond, yes, no) if staticTruth(cond).isEmpty =>
 			for (y <- staticTruth(yes); n <- staticTruth(no); if y == n) yield y
 
-		case PropertyWrite(_, _, value) => staticTruth(value)
+		case PropertyWrite(_, _, value, _) => staticTruth(value)
 
 		case Binary(op @ ("||" | "&&"), lhs, rhs) =>
 			(op, staticTruth(lhs), staticTruth(rhs)) match {
@@ -216,8 +216,8 @@ private[expression] object Optimizer {
 		case PropertyRead(receiver, property, safe) =>
 			PropertyRead(optimize(receiver), optimize(property), safe)
 
-		case PropertyWrite(receiver, property, value) =>
-			PropertyWrite(optimize(receiver), optimize(property), optimize(value))
+		case PropertyWrite(receiver, property, value, signal) =>
+			PropertyWrite(optimize(receiver), optimize(property), optimize(value), signal)
 
 		case FunctionCall(target, args) =>
 			FunctionCall(optimize(target), args.map(optimize))

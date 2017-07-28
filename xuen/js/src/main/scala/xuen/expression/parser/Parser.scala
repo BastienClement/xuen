@@ -117,8 +117,8 @@ private[expression] object Parser extends Parsers {
 	}
 
 	private lazy val memberWrite: Parser[Expression => Expression] = {
-		identifierName ~ (Equal ~> commit(simpleExpression)) map {
-			case member ~ value => PropertyWrite(_, member, value)
+		identifierName ~ (Equal | ColonEqual) ~! simpleExpression map {
+			case member ~ op ~ value => PropertyWrite(_, member, value, op == ColonEqual)
 		}
 	}
 
@@ -135,9 +135,9 @@ private[expression] object Parser extends Parsers {
 	}
 
 	private lazy val bracketAccess: Parser[Expression => Expression] = {
-		(LeftBracket ~> commit(simpleExpression) <~ RightBracket) ~ (Equal ~> commit(simpleExpression)).? map {
+		(LeftBracket ~> commit(simpleExpression) <~ RightBracket) ~ ((Equal | ColonEqual) ~ commit(simpleExpression)).? map {
 			case key ~ None => PropertyRead(_, key, safe = false)
-			case key ~ Some(value) => PropertyWrite(_, key, value)
+			case key ~ Some(op ~ value) => PropertyWrite(_, key, value, op == ColonEqual)
 		}
 	}
 

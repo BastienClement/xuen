@@ -3,6 +3,7 @@ package xuen.expression
 import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.js.UndefOr
+import xuen.signal.Source
 
 /**
   * A context is used during expression evaluation. It represent the
@@ -51,10 +52,18 @@ object Context {
 	class Root(val self: js.Dynamic, val selector: js.UndefOr[String => dom.Element] = js.undefined) extends Context {
 		def has(key: String): Boolean = get(key).isDefined
 		def get(key: String): js.UndefOr[Any] = self.selectDynamic(key)
-		def set(key: String, value: Any): Unit = get(key) match {
-			case f: js.Function => throw new IllegalAccessException("Overriding a function property on the reference object is not allowed")
-			case any if any.isDefined => self.updateDynamic(key)(value.asInstanceOf[js.Any])
-			case _ => throw new IllegalAccessException("Setting an undefined property on the reference object is not allowed")
+		def set(key: String, value: Any): Unit = {
+			println(key, value)
+			get(key) match {
+				case f: js.Function => throw new IllegalAccessException("Overriding a function property on the reference object is not allowed")
+				case any if any.isDefined =>
+					println(any.get)
+					any.get match {
+						case source: Source[_] => source.asInstanceOf[Source[Any]] := value
+						case _ => self.updateDynamic(key)(value.asInstanceOf[js.Any])
+					}
+				case _ => throw new IllegalAccessException("Setting an undefined property on the reference object is not allowed")
+			}
 		}
 
 		def invoke(key: String, args: Seq[Any]): Any = {

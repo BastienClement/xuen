@@ -5,7 +5,7 @@ import scala.scalajs.js
 import scala.scalajs.js.DynamicImplicits.truthValue
 import scala.scalajs.js.JSConverters._
 import xuen.expression.Expression._
-import xuen.signal.Signal
+import xuen.signal.{Signal, Source}
 
 object Interpreter {
 	def evaluate(expr: Expression)(implicit context: Context): Any = signalValue(evaluateTree(expr))
@@ -22,7 +22,7 @@ object Interpreter {
 		case Chain(expressions) => evaluateChain(expressions)
 		case Conditional(cond, yes, no) => evaluateConditional(cond, yes, no)
 		case PropertyRead(receiver, name, safe) => evaluatePropertyRead(receiver, name, safe)
-		case PropertyWrite(receiver, name, value) => evaluatePropertyWrite(receiver, name, value)
+		case PropertyWrite(receiver, name, value, signal) => evaluatePropertyWrite(receiver, name, value, signal)
 		case FunctionCall(target, args) => evaluateFunctionCall(target, args)
 		case Binary(op, lhs, rhs) => evaluateBinary(op, lhs, rhs)
 		case Unary(op, operand) => evaluateUnary(op, operand)
@@ -65,15 +65,27 @@ object Interpreter {
 		}
 	}
 
-	private def evaluatePropertyWrite(receiver: Expression, property: Expression, value: Expression)
+	private def evaluatePropertyWrite(receiver: Expression, property: Expression, value: Expression, signal: Boolean)
 	                                 (implicit context: Context): Any = {
-		val key = evaluate(property).toString
+		val key = evaluate(StringView(property)).toString
 		val effectiveValue = evaluate(value)
-		evaluate(receiver) match {
-			case ImplicitReceiver => context.set(key, effectiveValue)
-			case target => target.asInstanceOf[js.Dynamic].updateDynamic(key)(effectiveValue.asInstanceOf[js.Any])
+		if (signal) {
+			val source = evaluate(receiver) match {
+				case ImplicitReceiver => context.get(key)
+				case target => target.asInstanceOf[js.Dynamic].selectDynamic(key).asInstanceOf[js.UndefOr[Any]]
+			}
+			if (!source.isDefined) throw new IllegalArgumentException("Undefined source for write")
+			source.get match {
+				case s: Source[_] => s.asInstanceOf[Source[Any]] := effectiveValue
+				case _ => throw new IllegalArgumentException("Signal-write target is not a Source")
+			}
+		} else {
+			evaluate(receiver) match {
+				case ImplicitReceiver => context.set(key, effectiveValue)
+				case target => target.asInstanceOf[js.Dynamic].updateDynamic(key)(effectiveValue.asInstanceOf[js.Any])
+			}
 		}
-		value
+		effectiveValue
 	}
 
 	private def evaluateFunctionCall(target: Expression, args: Seq[Expression])

@@ -11,9 +11,9 @@ final class Source[T] private (initialValue: Option[T]) extends Mutable[T] {
 
 	/** Updates the current value of this signal */
 	protected def current_= (value: Option[T]): Unit = MutationContext.execute { implicit ctx =>
-		if (ctx.parents.contains(this)) {
+		/*if (ctx.parents.contains(this)) {
 			throw new IllegalStateException("Illegal reference to mutated Source during flush")
-		}
+		}*/
 		ctx.mutating(this)
 		currentValue = value
 		notifyUpdate()
